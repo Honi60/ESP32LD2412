@@ -24,7 +24,7 @@
 #define VALUE_Y          76     /* the big distance digits */
 
 #define COLOR_STATIC     lv_color_hex(0x00E000)
-#define COLOR_MOVING     lv_color_hex(0xB040FF)
+#define COLOR_MOVING     lv_color_hex(0xFF00FF)
 #define COLOR_OK         lv_color_hex(0x00E000)
 #define COLOR_FAIL       lv_color_hex(0xFF2020)
 
