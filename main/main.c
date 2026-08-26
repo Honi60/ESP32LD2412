@@ -15,6 +15,7 @@
 
 #define LVGL_PERIOD_MS   10
 #define UI_PERIOD_MS     200
+#define LOG_PERIOD_MS    1000   /* mirror the readings on the console */
 #define NO_TARGET_MS     2000   /* declare the sensor silent after this long without a frame */
 #define LABEL_WIDTH      (EXAMPLE_LCD_H_RES - 8)
 
@@ -78,6 +79,7 @@ void app_main(void) {
     ld2412_data_t data = {0};
     TickType_t last_frame = 0;
     TickType_t last_ui = 0;
+    TickType_t last_log = 0;
 
     while (1) {
         /* Drain whatever the radar sent since the last pass; it reports at ~10 Hz. */
@@ -114,6 +116,17 @@ void app_main(void) {
                              energy, data.moving_energy, data.static_energy);
                     lv_label_set_text(energy_label, buf);
                 }
+            }
+        }
+
+        if (now - last_log >= pdMS_TO_TICKS(LOG_PERIOD_MS)) {
+            last_log = now;
+            if (last_frame == 0 || now - last_frame > pdMS_TO_TICKS(NO_TARGET_MS)) {
+                ESP_LOGW(TAG, "no radar frame for %d ms", NO_TARGET_MS);
+            } else {
+                ESP_LOGI(TAG, "%s: moving %u cm / %u, static %u cm / %u",
+                         ld2412_state_str(data.state), data.moving_distance_cm,
+                         data.moving_energy, data.static_distance_cm, data.static_energy);
             }
         }
 
