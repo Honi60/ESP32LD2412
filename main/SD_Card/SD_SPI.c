@@ -79,9 +79,11 @@ void SD_Init(void)
         .quadhd_io_num = -1,
         .max_transfer_sz = 4000,
     };
+    /* The LCD shares this bus and never initialises it itself, so it must stay up
+     * even when no card is present. */
     ret = spi_bus_initialize(host.slot, &bus_cfg, SDSPI_DEFAULT_DMA);
     if (ret != ESP_OK) {
-        ESP_LOGE(SD_TAG, "Failed to initialize SPI bus.");
+        ESP_LOGE(SD_TAG, "Failed to initialize SPI bus: %s", esp_err_to_name(ret));
         return;
     }
 
@@ -94,10 +96,14 @@ void SD_Init(void)
     ESP_LOGI(SD_TAG, "Mounting filesystem");
     ret = esp_vfs_fat_sdspi_mount(mount_point, &host, &slot_config, &mount_config, &card);
 
+    if (ret == ESP_ERR_TIMEOUT || ret == ESP_ERR_NOT_FOUND) {
+        /* No card in the slot: not an error, the application does not need one. */
+        ESP_LOGW(SD_TAG, "No SD card detected, continuing without storage");
+        return;
+    }
     if (ret != ESP_OK) {
         if (ret == ESP_FAIL) {
-            ESP_LOGE(SD_TAG, "Failed to mount filesystem. "
-                     "If you want the card to be formatted, set the CONFIG_EXAMPLE_FORMAT_IF_MOUNT_FAILED menuconfig option.");
+            ESP_LOGE(SD_TAG, "Failed to mount filesystem on the card");
         } else {
             ESP_LOGE(SD_TAG, "Failed to initialize the card (%s). "
                      "Make sure SD card lines have pull-up resistors in place.", esp_err_to_name(ret));
