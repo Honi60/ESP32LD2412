@@ -12,11 +12,13 @@
 #ifndef CONFIG_LD2412_UART_PORT
 #define CONFIG_LD2412_UART_PORT 1
 #endif
+/* GPIO16/17 are U0TXD/U0RXD and belong to the console; 18/19 are free on the
+ * ESP32-C6-LCD-1.47 header. */
 #ifndef CONFIG_LD2412_TX_GPIO
-#define CONFIG_LD2412_TX_GPIO 16
+#define CONFIG_LD2412_TX_GPIO 18
 #endif
 #ifndef CONFIG_LD2412_RX_GPIO
-#define CONFIG_LD2412_RX_GPIO 17
+#define CONFIG_LD2412_RX_GPIO 19
 #endif
 
 #define LD2412_UART_PORT ((uart_port_t)CONFIG_LD2412_UART_PORT)
