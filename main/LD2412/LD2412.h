@@ -50,6 +50,9 @@ typedef struct {
 
 esp_err_t ld2412_init(void);
 
+/* Logs the first bytes the radar sends on its own; ESP_ERR_TIMEOUT if the line stays silent. */
+esp_err_t ld2412_probe(uint32_t timeout_ms);
+
 /* Configuration commands. Every command must be wrapped in
  * ld2412_enable_config() / ld2412_end_config(), protocol section 2.4.1. */
 esp_err_t ld2412_enable_config(void);
