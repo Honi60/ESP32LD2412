@@ -28,15 +28,20 @@
 #define EXAMPLE_PIN_NUM_LCD_DC         15
 #define EXAMPLE_PIN_NUM_LCD_RST        21
 #define EXAMPLE_PIN_NUM_BK_LIGHT       22
-// The pixel number in horizontal and vertical
-#define EXAMPLE_LCD_H_RES              172
-#define EXAMPLE_LCD_V_RES              320
+// The pixel number in horizontal and vertical, panel rotated to landscape
+#define EXAMPLE_LCD_H_RES              320
+#define EXAMPLE_LCD_V_RES              172
+// Panel orientation; flip the mirror flags if the image comes out upside down
+#define LCD_SWAP_XY                    true
+#define LCD_MIRROR_X                   true
+#define LCD_MIRROR_Y                   true
 // Bit number used to represent command and parameter
 #define EXAMPLE_LCD_CMD_BITS           8
 #define EXAMPLE_LCD_PARAM_BITS         8
 
-#define Offset_X 34
-#define Offset_Y 0
+/* The panel's 34-column window offset follows the swapped axes into Y. */
+#define Offset_X 0
+#define Offset_Y 34
 
 
 #define LEDC_HS_TIMER          LEDC_TIMER_0
