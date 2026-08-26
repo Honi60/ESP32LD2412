@@ -4,6 +4,8 @@ idf_component_register(
                               "LCD_Driver/ST7789.c"
                               "LVGL_Driver/LVGL_Driver.c"
                               "LVGL_UI/LVGL_Example.c"
+                              "LVGL_UI/font_digits_100.c"
+                              "LVGL_UI/font_text_20.c"
                               "SD_Card/SD_SPI.c"
                               "RGB/RGB.c"
                               "Wireless/Wireless.c"

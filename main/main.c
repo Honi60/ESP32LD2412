@@ -17,7 +17,19 @@
 #define UI_PERIOD_MS     200
 #define LOG_PERIOD_MS    1000   /* mirror the readings on the console */
 #define NO_TARGET_MS     2000   /* declare the sensor silent after this long without a frame */
-#define LABEL_WIDTH      (EXAMPLE_LCD_H_RES - 8)
+
+#define HALF_WIDTH       (EXAMPLE_LCD_H_RES / 2)
+#define STATUS_Y         2      /* connection row */
+#define SIGNAL_Y         30     /* per-side energy row */
+#define VALUE_Y          76     /* the big distance digits */
+
+#define COLOR_STATIC     lv_color_hex(0x00E000)
+#define COLOR_MOVING     lv_color_hex(0xB040FF)
+#define COLOR_OK         lv_color_hex(0x00E000)
+#define COLOR_FAIL       lv_color_hex(0xFF2020)
+
+LV_FONT_DECLARE(font_digits_100);
+LV_FONT_DECLARE(font_text_20);
 
 static void init_nvs(void) {
     esp_err_t ret = nvs_flash_init();
@@ -28,14 +40,42 @@ static void init_nvs(void) {
     ESP_ERROR_CHECK(ret);
 }
 
-static lv_obj_t *create_label(const char *text, lv_coord_t y_offset) {
+/* One half-width, centred line of text; x picks the left or the right column. */
+static lv_obj_t *create_label(lv_coord_t x, lv_coord_t y, const lv_font_t *font,
+                              lv_color_t color, const char *text) {
     lv_obj_t *label = lv_label_create(lv_scr_act());
-    lv_obj_set_width(label, LABEL_WIDTH);
+    lv_obj_set_width(label, HALF_WIDTH);
     lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_font(label, font, 0);
+    lv_obj_set_style_text_color(label, color, 0);
     lv_label_set_text(label, text);
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, y_offset);
+    lv_obj_set_pos(label, x, y);
     return label;
+}
+
+/* Metres with one decimal, but 4 glyphs do not fit in a half screen, so past 10 m
+ * (the last gate is at 10.5 m) the decimal is dropped. */
+static void set_distance(lv_obj_t *label, bool valid, uint16_t distance_cm) {
+    char buf[8];
+
+    if (!valid) {
+        lv_label_set_text(label, "-.-");
+    } else if (distance_cm >= 1000) {
+        snprintf(buf, sizeof(buf), "%u", distance_cm / 100);
+        lv_label_set_text(label, buf);
+    } else {
+        snprintf(buf, sizeof(buf), "%.1f", distance_cm / 100.0f);
+        lv_label_set_text(label, buf);
+    }
+}
+
+static void create_divider(void) {
+    static lv_point_t points[] = {{HALF_WIDTH, SIGNAL_Y}, {HALF_WIDTH, EXAMPLE_LCD_V_RES}};
+    lv_obj_t *line = lv_line_create(lv_scr_act());
+    lv_line_set_points(line, points, 2);
+    lv_obj_set_style_line_width(line, 2, 0);
+    lv_obj_set_style_line_color(line, lv_color_hex(0x808080), 0);
 }
 
 static void log_firmware_version(void) {
@@ -72,9 +112,17 @@ void app_main(void) {
     BK_Light(50);
     LVGL_Init();
 
-    lv_obj_t *state_label  = create_label("Sensor: waiting", -40);
-    lv_obj_t *dist_label   = create_label("Distance: --.- m", 0);
-    lv_obj_t *energy_label = create_label("Energy: ---", 40);
+    lv_obj_set_style_bg_color(lv_scr_act(), lv_color_black(), 0);
+
+    lv_obj_t *conn_label = create_label(HALF_WIDTH / 2, STATUS_Y, &font_text_20,
+                                        COLOR_FAIL, "connect X");
+    lv_obj_t *static_sig = create_label(0, SIGNAL_Y, &font_text_20,
+                                        COLOR_STATIC, "static sig ---");
+    lv_obj_t *moving_sig = create_label(HALF_WIDTH, SIGNAL_Y, &font_text_20,
+                                        COLOR_MOVING, "moving sig ---");
+    lv_obj_t *static_val = create_label(0, VALUE_Y, &font_digits_100, COLOR_STATIC, "-.-");
+    lv_obj_t *moving_val = create_label(HALF_WIDTH, VALUE_Y, &font_digits_100, COLOR_MOVING, "-.-");
+    create_divider();
 
     ld2412_data_t data = {0};
     TickType_t last_frame = 0;
@@ -88,40 +136,39 @@ void app_main(void) {
         }
 
         const TickType_t now = xTaskGetTickCount();
+        const bool connected = (last_frame != 0 && now - last_frame <= pdMS_TO_TICKS(NO_TARGET_MS));
+
         if (now - last_ui >= pdMS_TO_TICKS(UI_PERIOD_MS)) {
             last_ui = now;
-            char buf[48];
+            char buf[24];
 
-            if (last_frame == 0 || now - last_frame > pdMS_TO_TICKS(NO_TARGET_MS)) {
-                lv_label_set_text(state_label, "Sensor: no data");
-                lv_label_set_text(dist_label, "Distance: --.- m");
-                lv_label_set_text(energy_label, "Energy: ---");
+            lv_label_set_text(conn_label, connected ? "connect V" : "connect X");
+            lv_obj_set_style_text_color(conn_label, connected ? COLOR_OK : COLOR_FAIL, 0);
+
+            if (!connected) {
+                lv_label_set_text(static_sig, "static sig ---");
+                lv_label_set_text(moving_sig, "moving sig ---");
+                set_distance(static_val, false, 0);
+                set_distance(moving_val, false, 0);
             } else {
-                snprintf(buf, sizeof(buf), "%s", ld2412_state_str(data.state));
-                lv_label_set_text(state_label, buf);
+                const bool has_static = (data.state == LD2412_TARGET_STATIC ||
+                                         data.state == LD2412_TARGET_BOTH);
+                const bool has_moving = (data.state == LD2412_TARGET_MOVING ||
+                                         data.state == LD2412_TARGET_BOTH);
 
-                const bool moving = (data.state == LD2412_TARGET_MOVING ||
-                                     data.state == LD2412_TARGET_BOTH);
-                const uint16_t distance_cm = moving ? data.moving_distance_cm
-                                                    : data.static_distance_cm;
-                const uint8_t energy = moving ? data.moving_energy : data.static_energy;
+                snprintf(buf, sizeof(buf), "static sig %3u", data.static_energy);
+                lv_label_set_text(static_sig, buf);
+                snprintf(buf, sizeof(buf), "moving sig %3u", data.moving_energy);
+                lv_label_set_text(moving_sig, buf);
 
-                if (data.state == LD2412_TARGET_NONE) {
-                    lv_label_set_text(dist_label, "Distance: --.- m");
-                    lv_label_set_text(energy_label, "Energy: ---");
-                } else {
-                    snprintf(buf, sizeof(buf), "Distance: %4.2f m", distance_cm / 100.0f);
-                    lv_label_set_text(dist_label, buf);
-                    snprintf(buf, sizeof(buf), "Energy: %3u (mov %3u / sta %3u)",
-                             energy, data.moving_energy, data.static_energy);
-                    lv_label_set_text(energy_label, buf);
-                }
+                set_distance(static_val, has_static, data.static_distance_cm);
+                set_distance(moving_val, has_moving, data.moving_distance_cm);
             }
         }
 
         if (now - last_log >= pdMS_TO_TICKS(LOG_PERIOD_MS)) {
             last_log = now;
-            if (last_frame == 0 || now - last_frame > pdMS_TO_TICKS(NO_TARGET_MS)) {
+            if (!connected) {
                 ESP_LOGW(TAG, "no radar frame for %d ms", NO_TARGET_MS);
             } else {
                 ESP_LOGI(TAG, "%s: moving %u cm / %u, static %u cm / %u",
