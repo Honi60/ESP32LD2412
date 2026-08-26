@@ -1,0 +1,40 @@
+Command: cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DPYTHON=/home/honi/.espressif/python_env/idf5.5_py3.12_env/bin/python -DESP_PLATFORM=1 -DIDF_TARGET=esp32c6 -DCCACHE_ENABLE=0 /home/honi/Documents/pyython-proj/ESP32LD2412
+info: INFO: Symbol LV_MEM_SIZE_KILOBYTES defined in multiple locations (see below). Please check if this is a correct behavior or a random name match:
+    /home/honi/Documents/pyython-proj/ESP32LD2412/main/Kconfig.projbuild:2
+    /home/honi/Documents/pyython-proj/ESP32LD2412/components/lvgl__lvgl/Kconfig:73
+info: INFO: Symbol LV_USE_DEMO_WIDGETS defined in multiple locations (see below). Please check if this is a correct behavior or a random name match:
+    /home/honi/Documents/pyython-proj/ESP32LD2412/main/Kconfig.projbuild:6
+    /home/honi/Documents/pyython-proj/ESP32LD2412/components/lvgl__lvgl/Kconfig:1090
+info: INFO: Symbol LV_DEMO_WIDGETS_SLIDESHOW defined in multiple locations (see below). Please check if this is a correct behavior or a random name match:
+    /home/honi/Documents/pyython-proj/ESP32LD2412/components/lvgl__lvgl/Kconfig:1093
+    /home/honi/Documents/pyython-proj/ESP32LD2412/main/Kconfig.projbuild:10
+info: INFO: Symbol LV_USE_DEMO_KEYPAD_AND_ENCODER defined in multiple locations (see below). Please check if this is a correct behavior or a random name match:
+    /home/honi/Documents/pyython-proj/ESP32LD2412/main/Kconfig.projbuild:15
+    /home/honi/Documents/pyython-proj/ESP32LD2412/components/lvgl__lvgl/Kconfig:1098
+info: INFO: Symbol LV_USE_DEMO_BENCHMARK defined in multiple locations (see below). Please check if this is a correct behavior or a random name match:
+    /home/honi/Documents/pyython-proj/ESP32LD2412/components/lvgl__lvgl/Kconfig:1102
+    /home/honi/Documents/pyython-proj/ESP32LD2412/main/Kconfig.projbuild:19
+info: INFO: Symbol LV_USE_DEMO_STRESS defined in multiple locations (see below). Please check if this is a correct behavior or a random name match:
+    /home/honi/Documents/pyython-proj/ESP32LD2412/components/lvgl__lvgl/Kconfig:1110
+    /home/honi/Documents/pyython-proj/ESP32LD2412/main/Kconfig.projbuild:23
+info: INFO: Symbol LV_USE_DEMO_MUSIC defined in multiple locations (see below). Please check if this is a correct behavior or a random name match:
+    /home/honi/Documents/pyython-proj/ESP32LD2412/components/lvgl__lvgl/Kconfig:1114
+    /home/honi/Documents/pyython-proj/ESP32LD2412/main/Kconfig.projbuild:27
+info: INFO: Symbol LV_FONT_MONTSERRAT_12 defined in multiple locations (see below). Please check if this is a correct behavior or a random name match:
+    /home/honi/Documents/pyython-proj/ESP32LD2412/components/lvgl__lvgl/Kconfig:497
+    /home/honi/Documents/pyython-proj/ESP32LD2412/main/Kconfig.projbuild:32
+info: INFO: Symbol LV_FONT_MONTSERRAT_14 defined in multiple locations (see below). Please check if this is a correct behavior or a random name match:
+    /home/honi/Documents/pyython-proj/ESP32LD2412/components/lvgl__lvgl/Kconfig:499
+    /home/honi/Documents/pyython-proj/ESP32LD2412/main/Kconfig.projbuild:36
+info: INFO: Symbol LV_FONT_MONTSERRAT_16 defined in multiple locations (see below). Please check if this is a correct behavior or a random name match:
+    /home/honi/Documents/pyython-proj/ESP32LD2412/main/Kconfig.projbuild:40
+    /home/honi/Documents/pyython-proj/ESP32LD2412/components/lvgl__lvgl/Kconfig:502
+info: INFO: Symbol BT_ENABLED defined in multiple locations (see below). Please check if this is a correct behavior or a random name match:
+    /home/honi/esp/esp-idf/components/bt/Kconfig:3
+    /home/honi/Documents/pyython-proj/ESP32LD2412/main/Kconfig.projbuild:46
+info: INFO: Symbol BT_BLE_50_FEATURES_SUPPORTED defined in multiple locations (see below). Please check if this is a correct behavior or a random name match:
+    /home/honi/esp/esp-idf/components/bt/host/bluedroid/Kconfig.in:1288
+    /home/honi/Documents/pyython-proj/ESP32LD2412/main/Kconfig.projbuild:50
+info: INFO: Symbol BT_BLE_42_FEATURES_SUPPORTED defined in multiple locations (see below). Please check if this is a correct behavior or a random name match:
+    /home/honi/Documents/pyython-proj/ESP32LD2412/main/Kconfig.projbuild:54
+    /home/honi/esp/esp-idf/components/bt/host/bluedroid/Kconfig.in:1353

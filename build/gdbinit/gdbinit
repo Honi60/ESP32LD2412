@@ -1,0 +1,2 @@
+source /home/honi/Documents/pyython-proj/ESP32LD2412/build/gdbinit/symbols
+source /home/honi/Documents/pyython-proj/ESP32LD2412/build/gdbinit/connect
