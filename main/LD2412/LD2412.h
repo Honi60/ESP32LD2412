@@ -1,66 +1,62 @@
 #pragma once
 
 #include "driver/uart.h"
+#include "esp_err.h"
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
-#pragma once
+/* Number of distance gates reported in engineering mode (gate 0 .. 13). */
+#define LD2412_GATE_COUNT 14
 
-#include "esp_err.h"
+#ifndef CONFIG_LD2412_UART_PORT
+#define CONFIG_LD2412_UART_PORT 1
+#endif
+#ifndef CONFIG_LD2412_TX_GPIO
+#define CONFIG_LD2412_TX_GPIO 16
+#endif
+#ifndef CONFIG_LD2412_RX_GPIO
+#define CONFIG_LD2412_RX_GPIO 17
+#endif
 
-typedef struct {
-    uint16_t distance_mm;
-    uint8_t signal_strength;
-} ld2412_target_t;
-
-typedef struct {
-    uint8_t target_count;
-    ld2412_target_t targets[8];  // Adjust size based on expected max targets
-    uint8_t buf[64];             // Raw data buffer for debugging
-    int start;
-    int endData;                 // Index of last meaningful byte (e.g., calibration byte after 0x55)
-} ld2412_frame_t;
-
-typedef struct {
-    uint8_t status_raw;
-    uint16_t movement_distance_cm;
-    uint8_t movement_energy;
-    uint16_t static_distance_cm;
-    uint8_t static_energy;
-} ld2412_basic_target_t;
-
-typedef struct {
-    uint8_t target_id;
-    uint16_t distance_cm;
-    uint8_t signal_strength;
-    uint8_t status_raw;
-    bool motion;
-    bool static_presence;
-    bool is_new;
-    bool is_lost;
-    float motion_energy;
-    float static_energy;
-} ld2412_engineering_target_t;
-
-
-#define LD2412_UART_PORT UART_NUM_1
-#define LD2412_TX_PIN 16
-#define LD2412_RX_PIN 17
+#define LD2412_UART_PORT ((uart_port_t)CONFIG_LD2412_UART_PORT)
+#define LD2412_TX_PIN    CONFIG_LD2412_TX_GPIO  /* ESP32 TX -> radar RX */
+#define LD2412_RX_PIN    CONFIG_LD2412_RX_GPIO  /* ESP32 RX <- radar TX */
 #define LD2412_BAUD_RATE 115200
 
+/* Target state values, protocol table 12. */
+typedef enum {
+    LD2412_TARGET_NONE   = 0x00,
+    LD2412_TARGET_MOVING = 0x01,
+    LD2412_TARGET_STATIC = 0x02,
+    LD2412_TARGET_BOTH   = 0x03,
+} ld2412_target_state_t;
+
+/* One decoded report frame, protocol tables 11 and 13. */
+typedef struct {
+    ld2412_target_state_t state;
+    uint16_t moving_distance_cm;
+    uint8_t  moving_energy;
+    uint16_t static_distance_cm;
+    uint8_t  static_energy;
+    bool     engineering;                              /* fields below are valid */
+    uint8_t  max_moving_gate;
+    uint8_t  max_static_gate;
+    uint8_t  moving_gate_energy[LD2412_GATE_COUNT];
+    uint8_t  static_gate_energy[LD2412_GATE_COUNT];
+} ld2412_data_t;
 
 esp_err_t ld2412_init(void);
+
+/* Configuration commands. Every command must be wrapped in
+ * ld2412_enable_config() / ld2412_end_config(), protocol section 2.4.1. */
 esp_err_t ld2412_enable_config(void);
 esp_err_t ld2412_end_config(void);
+esp_err_t ld2412_set_engineering_mode(bool enable);
 esp_err_t ld2412_read_firmware_version(char *version_str, size_t max_len);
-esp_err_t ld2412_start_stream(void);
-esp_err_t ld2412_read_frame(ld2412_frame_t *frame);
-esp_err_t ld2412_parse_basic(const uint8_t *buf, int start, int end);
-esp_err_t ld2412_parse_engineering(const uint8_t *buf, int start, int end);
-esp_err_t ld2412_parse_frame(ld2412_frame_t *frame);
-const char* decode_status(uint8_t status );
-esp_err_t ld2412_set_output_mode(uart_port_t uart_num, bool basic_mode);
-esp_err_t ld2412_enable_configuration(uart_port_t uart_num);
-esp_err_t ld2412_exit_configuration(uart_port_t uart_num);
 
+/* Reads the next report frame, waiting at most timeout_ms.
+ * Returns ESP_ERR_TIMEOUT when no complete frame arrived. */
+esp_err_t ld2412_read_data(ld2412_data_t *out, uint32_t timeout_ms);
 
+const char *ld2412_state_str(ld2412_target_state_t state);

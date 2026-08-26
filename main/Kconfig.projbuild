@@ -1,3 +1,22 @@
+menu "LD2412 radar"
+    config LD2412_UART_PORT
+        int "UART port connected to the LD2412"
+        default 1
+
+    config LD2412_TX_GPIO
+        int "GPIO driving the LD2412 RX pin"
+        default 16
+        help
+            On ESP32-C6 GPIO16 is U0TXD, the default console UART pin. Keeping the
+            radar on 16/17 while CONFIG_ESP_CONSOLE_UART_NUM=0 makes the boot log and
+            the radar traffic share the same pads. Either move the radar to free GPIOs
+            or switch the console to USB Serial/JTAG.
+
+    config LD2412_RX_GPIO
+        int "GPIO reading the LD2412 TX pin"
+        default 17
+endmenu
+
 menu "Example Configuration"
     config LV_MEM_SIZE_KILOBYTES
         int "Size of the memory used by `lv_mem_alloc` in kilobytes (>= 2kB)"
