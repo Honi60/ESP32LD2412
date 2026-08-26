@@ -1,11 +1,11 @@
-#include "esp_mac.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include "ST7789.h"
 #include "SD_SPI.h"
 #include "RGB.h"
-#include "Wireless.h"
 #include "LVGL_Example.h"
 #include "LD2412/LD2412.h"
 
@@ -13,31 +13,53 @@
 
 #define TAG "MAIN"
 
+#define LVGL_PERIOD_MS   10
+#define UI_PERIOD_MS     200
+#define NO_TARGET_MS     2000   /* declare the sensor silent after this long without a frame */
+#define LABEL_WIDTH      (EXAMPLE_LCD_H_RES - 8)
 
-void app_main(void) {
-    // Initialize NVS
+static void init_nvs(void) {
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+}
 
-    // Initialize LD2412
-    ld2412_init();
-    // ld2412_enable_config();
+static lv_obj_t *create_label(const char *text, lv_coord_t y_offset) {
+    lv_obj_t *label = lv_label_create(lv_scr_act());
+    lv_obj_set_width(label, LABEL_WIDTH);
+    lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(label, text);
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, y_offset);
+    return label;
+}
 
-    // char fw[32] = {0};
-    // if (ld2412_read_firmware_version(fw, sizeof(fw)) == ESP_OK) {
-    //     ESP_LOGI(TAG, "LD2412 Firmware: %s", fw);
-    // } else {
-    //     ESP_LOGE(TAG, "Failed to read firmware version");
-    //     snprintf(fw, sizeof(fw), "Read failed");
-    // }
-    // ld2412_end_config();
+static void log_firmware_version(void) {
+    char fw[32];
 
-    // Initialize peripherals
-    //Wireless_Init();
+    if (ld2412_enable_config() != ESP_OK) {
+        ESP_LOGE(TAG, "LD2412 did not enter configuration mode");
+        return;
+    }
+    if (ld2412_read_firmware_version(fw, sizeof(fw)) == ESP_OK) {
+        ESP_LOGI(TAG, "LD2412 firmware: %s", fw);
+    } else {
+        ESP_LOGE(TAG, "Failed to read LD2412 firmware version");
+    }
+    /* Engineering mode is off after power-on; pass true to also get per-gate energies. */
+    ESP_ERROR_CHECK_WITHOUT_ABORT(ld2412_set_engineering_mode(false));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(ld2412_end_config());
+}
+
+void app_main(void) {
+    init_nvs();
+
+    ESP_ERROR_CHECK(ld2412_init());
+    log_firmware_version();
+
     Flash_Searching();
     RGB_Init();
     RGB_Example();
@@ -46,64 +68,53 @@ void app_main(void) {
     BK_Light(50);
     LVGL_Init();
 
+    lv_obj_t *state_label  = create_label("Sensor: waiting", -40);
+    lv_obj_t *dist_label   = create_label("Distance: --.- m", 0);
+    lv_obj_t *energy_label = create_label("Energy: ---", 40);
 
-    // Create LVGL labels
-    lv_obj_t *dist_label = lv_label_create(lv_scr_act());
-    lv_obj_set_width(dist_label, 200);  // Fixed width to prevent shifting
-    lv_label_set_text(dist_label, "Distance: --.- m");
-    lv_obj_align(dist_label, LV_ALIGN_CENTER, 0, -20);
+    ld2412_data_t data = {0};
+    TickType_t last_frame = 0;
+    TickType_t last_ui = 0;
 
-    lv_obj_t *signal_label = lv_label_create(lv_scr_act());
-    lv_obj_set_width(signal_label, 200);
-    lv_label_set_text(signal_label, "Signal: ---");
-    lv_obj_align(signal_label, LV_ALIGN_CENTER, 0, 20);
-
-    // Start radar data stream
-    //ld2412_start_stream();
-
-    // Main loop
-       // Variables to hold last valid values
-    float last_distance_m = 0.0f;
-    uint8_t last_signal = 0;
-    ld2412_frame_t frame;
-    ld2412_enable_configuration(UART_NUM_1);
-    ld2412_set_output_mode(UART_NUM_1, true);  // Set to basic mode
-    ld2412_exit_configuration(UART_NUM_1);
-    // Main loop
     while (1) {
-        
-        frame.targets[0].signal_strength = -1;
-        if (ld2412_read_frame(&frame) == ESP_OK) {
-            uint16_t distance = frame.targets[0].distance_mm;
-            uint8_t signal = frame.targets[0].signal_strength;
-
-            if (signal >= 20) {
-                last_distance_m = distance / 100.0f;
-                last_signal = signal;
-            }
-
-            // Update display with last known good values
-            char dist_str[32];
-            snprintf(dist_str, sizeof(dist_str), "Distance: %.1f m", last_distance_m);
-            lv_label_set_text(dist_label, dist_str);
-
-            char signal_str[32];
-            snprintf(signal_str, sizeof(signal_str), "Signal: %3d/%3d", last_signal, signal);
-            lv_label_set_text(signal_label, signal_str);
-            ld2412_parse_frame(&frame);
-            //ESP_LOGI(TAG, "Distance: %.1f m, Signal: %d", last_distance_m, last_signal);
-        } else {
-            lv_label_set_text(signal_label, "Get bad frame");
+        /* Drain whatever the radar sent since the last pass; it reports at ~10 Hz. */
+        while (ld2412_read_data(&data, 0) == ESP_OK) {
+            last_frame = xTaskGetTickCount();
         }
-        
-        // ESP_LOGI(TAG, "Raw Data:");
-        // ESP_LOG_BUFFER_HEX(TAG, frame.buf, sizeof(frame.buf));
-        // ESP_LOGI(TAG, "Frame start index: %d", frame.start);
-        // ESP_LOGI(TAG, "Frame end index: %d", frame.endData);
 
-       
+        const TickType_t now = xTaskGetTickCount();
+        if (now - last_ui >= pdMS_TO_TICKS(UI_PERIOD_MS)) {
+            last_ui = now;
+            char buf[48];
+
+            if (last_frame == 0 || now - last_frame > pdMS_TO_TICKS(NO_TARGET_MS)) {
+                lv_label_set_text(state_label, "Sensor: no data");
+                lv_label_set_text(dist_label, "Distance: --.- m");
+                lv_label_set_text(energy_label, "Energy: ---");
+            } else {
+                snprintf(buf, sizeof(buf), "%s", ld2412_state_str(data.state));
+                lv_label_set_text(state_label, buf);
+
+                const bool moving = (data.state == LD2412_TARGET_MOVING ||
+                                     data.state == LD2412_TARGET_BOTH);
+                const uint16_t distance_cm = moving ? data.moving_distance_cm
+                                                    : data.static_distance_cm;
+                const uint8_t energy = moving ? data.moving_energy : data.static_energy;
+
+                if (data.state == LD2412_TARGET_NONE) {
+                    lv_label_set_text(dist_label, "Distance: --.- m");
+                    lv_label_set_text(energy_label, "Energy: ---");
+                } else {
+                    snprintf(buf, sizeof(buf), "Distance: %4.2f m", distance_cm / 100.0f);
+                    lv_label_set_text(dist_label, buf);
+                    snprintf(buf, sizeof(buf), "Energy: %3u (mov %3u / sta %3u)",
+                             energy, data.moving_energy, data.static_energy);
+                    lv_label_set_text(energy_label, buf);
+                }
+            }
+        }
+
         lv_timer_handler();
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        vTaskDelay(pdMS_TO_TICKS(LVGL_PERIOD_MS));
     }
-
 }
