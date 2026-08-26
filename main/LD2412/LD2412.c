@@ -4,6 +4,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <inttypes.h>
 #include <string.h>
 
 #define TAG "LD2412"
@@ -40,10 +41,8 @@ static const uint8_t CMD_TAIL[4]    = {0x04, 0x03, 0x02, 0x01};
 static uint8_t s_rx[2 * (FRAME_OVERHEAD + MAX_PAYLOAD_LEN)];
 static size_t s_rx_len;
 
-#if defined(CONFIG_ESP_CONSOLE_UART) && (LD2412_TX_PIN == 16 || LD2412_RX_PIN == 16 || \
-                                         LD2412_TX_PIN == 17 || LD2412_RX_PIN == 17)
-#error "LD2412 is on the console UART pads (GPIO16/17): pick free GPIOs, or move the console to USB Serial/JTAG"
-#endif
+#define ON_CONSOLE_PADS (LD2412_TX_PIN == 16 || LD2412_RX_PIN == 16 || \
+                         LD2412_TX_PIN == 17 || LD2412_RX_PIN == 17)
 
 static uint16_t le16(const uint8_t *p) {
     return (uint16_t)(p[0] | (p[1] << 8));
@@ -69,6 +68,35 @@ esp_err_t ld2412_init(void) {
     s_rx_len = 0;
     ESP_LOGI(TAG, "UART%d at %d baud, TX=GPIO%d (radar RX), RX=GPIO%d (radar TX)",
              LD2412_UART_PORT, LD2412_BAUD_RATE, LD2412_TX_PIN, LD2412_RX_PIN);
+#if defined(CONFIG_ESP_CONSOLE_UART) && ON_CONSOLE_PADS
+    ESP_LOGW(TAG, "GPIO16/17 are the UART%d console pads; the console and the radar are "
+                  "sharing them", CONFIG_ESP_CONSOLE_UART_NUM);
+#endif
+    return ESP_OK;
+}
+
+/* Logs whatever the radar sends on its own, so a silent RX line (wrong pin, swapped
+ * TX/RX, wrong baud, no power) can be told apart from a protocol problem. */
+esp_err_t ld2412_probe(uint32_t timeout_ms) {
+    uint8_t buf[64];
+    const TickType_t deadline = xTaskGetTickCount() + pdMS_TO_TICKS(timeout_ms);
+    size_t total = 0;
+
+    while (xTaskGetTickCount() < deadline) {
+        const int read = uart_read_bytes(LD2412_UART_PORT, buf, sizeof(buf), pdMS_TO_TICKS(50));
+        if (read <= 0) continue;
+        if (total == 0) ESP_LOG_BUFFER_HEX(TAG, buf, read);
+        total += (size_t)read;
+    }
+
+    if (total == 0) {
+        ESP_LOGE(TAG, "nothing received in %" PRIu32 " ms: check that the radar TX is on "
+                      "GPIO%d, that it is powered, and that it still runs at %d baud",
+                 timeout_ms, LD2412_RX_PIN, LD2412_BAUD_RATE);
+        return ESP_ERR_TIMEOUT;
+    }
+
+    ESP_LOGI(TAG, "%u bytes received in %" PRIu32 " ms", (unsigned)total, timeout_ms);
     return ESP_OK;
 }
 

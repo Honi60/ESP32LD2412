@@ -58,7 +58,10 @@ void app_main(void) {
     init_nvs();
 
     ESP_ERROR_CHECK(ld2412_init());
-    log_firmware_version();
+    /* Reports come unprompted, so a silent line here means wiring, not protocol. */
+    if (ld2412_probe(1000) == ESP_OK) {
+        log_firmware_version();
+    }
 
     Flash_Searching();
     RGB_Init();
