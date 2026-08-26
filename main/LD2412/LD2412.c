@@ -40,6 +40,11 @@ static const uint8_t CMD_TAIL[4]    = {0x04, 0x03, 0x02, 0x01};
 static uint8_t s_rx[2 * (FRAME_OVERHEAD + MAX_PAYLOAD_LEN)];
 static size_t s_rx_len;
 
+#if defined(CONFIG_ESP_CONSOLE_UART) && (LD2412_TX_PIN == 16 || LD2412_RX_PIN == 16 || \
+                                         LD2412_TX_PIN == 17 || LD2412_RX_PIN == 17)
+#error "LD2412 is on the console UART pads (GPIO16/17): pick free GPIOs, or move the console to USB Serial/JTAG"
+#endif
+
 static uint16_t le16(const uint8_t *p) {
     return (uint16_t)(p[0] | (p[1] << 8));
 }
@@ -62,6 +67,8 @@ esp_err_t ld2412_init(void) {
                                      UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE),
                         TAG, "uart_set_pin failed");
     s_rx_len = 0;
+    ESP_LOGI(TAG, "UART%d at %d baud, TX=GPIO%d (radar RX), RX=GPIO%d (radar TX)",
+             LD2412_UART_PORT, LD2412_BAUD_RATE, LD2412_TX_PIN, LD2412_RX_PIN);
     return ESP_OK;
 }
 

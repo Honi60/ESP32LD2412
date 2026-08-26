@@ -5,16 +5,16 @@ menu "LD2412 radar"
 
     config LD2412_TX_GPIO
         int "GPIO driving the LD2412 RX pin"
-        default 16
+        default 18
         help
-            On ESP32-C6 GPIO16 is U0TXD, the default console UART pin. Keeping the
-            radar on 16/17 while CONFIG_ESP_CONSOLE_UART_NUM=0 makes the boot log and
-            the radar traffic share the same pads. Either move the radar to free GPIOs
-            or switch the console to USB Serial/JTAG.
+            Do not use GPIO16/17 on ESP32-C6: those are U0TXD/U0RXD, which the console
+            drives while CONFIG_ESP_CONSOLE_UART_NUM=0, so the boot log and the radar
+            traffic collide on the same pads and the radar never answers. GPIO18/19/20/23
+            are free on the ESP32-C6-LCD-1.47 header.
 
     config LD2412_RX_GPIO
         int "GPIO reading the LD2412 TX pin"
-        default 17
+        default 19
 endmenu
 
 menu "Example Configuration"
