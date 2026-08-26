@@ -162,17 +162,17 @@ esp_err_t ld2412_set_engineering_mode(bool enable) {
 
 esp_err_t ld2412_read_firmware_version(char *version_str, size_t max_len) {
     /* ACK value: 2 status + 2 firmware type + 2 major + 4 minor. */
-    uint8_t value[16];
+    uint8_t value[16] = {0};
     size_t value_len = sizeof(value);
 
     ESP_RETURN_ON_ERROR(send_command_wait_ack(CMD_READ_FW_VERSION, NULL, 0, value, &value_len),
                         TAG, "read firmware version failed");
-    if (value_len < 8) return ESP_ERR_INVALID_RESPONSE;
+    if (value_len < 10) return ESP_ERR_INVALID_RESPONSE;
 
-    /* value[0..1] is the firmware type (0x2412), the version digits are BCD-like:
-     * 10 01 10 18 04 24 reads as V1.10.24041810. */
+    /* value[0..1] status, [2..3] firmware type (0x2412), [4..5] major, [6..9] minor,
+     * all little endian and BCD-like: 10 01 | 10 18 04 24 reads as V1.10.24041810. */
     snprintf(version_str, max_len, "V%X.%02X.%02X%02X%02X%02X",
-             value[3], value[2], value[7], value[6], value[5], value[4]);
+             value[5], value[4], value[9], value[8], value[7], value[6]);
     return ESP_OK;
 }
 
