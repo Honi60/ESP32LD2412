@@ -34,6 +34,24 @@ typedef enum {
     LD2412_TARGET_BOTH   = 0x03,
 } ld2412_target_state_t;
 
+/* Distance gate resolution, protocol section 2.2.3. Gates are 0.75 m wide
+ * by default; changing the resolution needs a radar reboot to take effect. */
+typedef enum {
+    LD2412_RESOLUTION_75CM = 0,
+    LD2412_RESOLUTION_50CM = 1,
+    LD2412_RESOLUTION_20CM = 3,
+} ld2412_resolution_t;
+
+/* Basic parameters, protocol sections 2.2.5 and 2.2.6. Distances are in gates;
+ * no_one_duration_s is how long the radar keeps reporting a target after it
+ * is lost, in seconds. */
+typedef struct {
+    uint8_t  min_gate;
+    uint8_t  max_gate;
+    uint16_t no_one_duration_s;
+    uint8_t  out_polarity;   /* 0: occupied drives OUT high; 1: unoccupied drives it low */
+} ld2412_basic_params_t;
+
 /* One decoded report frame, protocol tables 11 and 13. */
 typedef struct {
     ld2412_target_state_t state;
@@ -59,6 +77,21 @@ esp_err_t ld2412_enable_config(void);
 esp_err_t ld2412_end_config(void);
 esp_err_t ld2412_set_engineering_mode(bool enable);
 esp_err_t ld2412_read_firmware_version(char *version_str, size_t max_len);
+
+/* Gate configuration, protocol sections 2.2.3-2.2.6 and 2.2.9-2.2.12.
+ * Gate indexes run 0..LD2412_GATE_COUNT-1 and each gate is ld2412_resolution_t
+ * wide (75 cm by default). A sensitivity of 100 masks a gate off completely.
+ * Sensitivity and basic parameters persist on the radar across reboots;
+ * the resolution applies only after one. All of these must be called between
+ * ld2412_enable_config() and ld2412_end_config(). */
+esp_err_t ld2412_set_resolution(ld2412_resolution_t resolution);
+esp_err_t ld2412_get_resolution(ld2412_resolution_t *resolution);
+esp_err_t ld2412_set_basic_params(const ld2412_basic_params_t *params);
+esp_err_t ld2412_get_basic_params(ld2412_basic_params_t *params);
+esp_err_t ld2412_set_motion_sensitivity(const uint8_t per_gate[LD2412_GATE_COUNT]);
+esp_err_t ld2412_get_motion_sensitivity(uint8_t per_gate[LD2412_GATE_COUNT]);
+esp_err_t ld2412_set_static_sensitivity(const uint8_t per_gate[LD2412_GATE_COUNT]);
+esp_err_t ld2412_get_static_sensitivity(uint8_t per_gate[LD2412_GATE_COUNT]);
 
 /* Reads the next report frame, waiting at most timeout_ms.
  * Returns ESP_ERR_TIMEOUT when no complete frame arrived. */

@@ -25,6 +25,14 @@ static const uint8_t CMD_TAIL[4]    = {0x04, 0x03, 0x02, 0x01};
 
 #define CMD_ENABLE_CONFIG      0x00FF
 #define CMD_END_CONFIG         0x00FE
+#define CMD_SET_RESOLUTION     0x0001
+#define CMD_SET_BASIC_PARAMS   0x0002
+#define CMD_SET_MOTION_SENS    0x0003
+#define CMD_SET_STATIC_SENS    0x0004
+#define CMD_READ_RESOLUTION    0x0011
+#define CMD_READ_BASIC_PARAMS  0x0012
+#define CMD_READ_MOTION_SENS   0x0013
+#define CMD_READ_STATIC_SENS   0x0014
 #define CMD_ENGINEERING_ON     0x0062
 #define CMD_ENGINEERING_OFF    0x0063
 #define CMD_READ_FW_VERSION    0x00A0
@@ -209,6 +217,83 @@ esp_err_t ld2412_read_firmware_version(char *version_str, size_t max_len) {
     snprintf(version_str, max_len, "V%X.%02X.%02X%02X%02X%02X",
              value[5], value[4], value[9], value[8], value[7], value[6]);
     return ESP_OK;
+}
+
+esp_err_t ld2412_set_resolution(ld2412_resolution_t resolution) {
+    /* Value: 1 byte resolution + 5 fixed zero bytes. Applies after a reboot. */
+    const uint8_t value[6] = {(uint8_t)resolution, 0, 0, 0, 0, 0};
+    return send_command_wait_ack(CMD_SET_RESOLUTION, value, sizeof(value), NULL, NULL);
+}
+
+esp_err_t ld2412_get_resolution(ld2412_resolution_t *resolution) {
+    if (resolution == NULL) return ESP_ERR_INVALID_ARG;
+    uint8_t value[16] = {0};
+    size_t value_len = sizeof(value);
+
+    ESP_RETURN_ON_ERROR(send_command_wait_ack(CMD_READ_RESOLUTION, NULL, 0, value, &value_len),
+                        TAG, "read resolution failed");
+    if (value_len < 3) return ESP_ERR_INVALID_RESPONSE;  /* 2 status + resolution byte */
+    *resolution = (ld2412_resolution_t)value[2];
+    return ESP_OK;
+}
+
+esp_err_t ld2412_set_basic_params(const ld2412_basic_params_t *params) {
+    if (params == NULL) return ESP_ERR_INVALID_ARG;
+    const uint8_t value[] = {
+        params->min_gate,
+        params->max_gate,
+        (uint8_t)(params->no_one_duration_s & 0xFF),
+        (uint8_t)(params->no_one_duration_s >> 8),
+        params->out_polarity,
+    };
+    return send_command_wait_ack(CMD_SET_BASIC_PARAMS, value, sizeof(value), NULL, NULL);
+}
+
+esp_err_t ld2412_get_basic_params(ld2412_basic_params_t *params) {
+    if (params == NULL) return ESP_ERR_INVALID_ARG;
+    uint8_t value[16] = {0};
+    size_t value_len = sizeof(value);
+
+    ESP_RETURN_ON_ERROR(send_command_wait_ack(CMD_READ_BASIC_PARAMS, NULL, 0, value, &value_len),
+                        TAG, "read basic params failed");
+    if (value_len < 7) return ESP_ERR_INVALID_RESPONSE;  /* 2 status + 5 params */
+    params->min_gate           = value[2];
+    params->max_gate           = value[3];
+    params->no_one_duration_s  = le16(&value[4]);
+    params->out_polarity       = value[6];
+    return ESP_OK;
+}
+
+/* Shares the get/set pair for a 14-byte per-gate sensitivity vector. */
+static esp_err_t get_sensitivity(uint16_t cmd_word, uint8_t per_gate[LD2412_GATE_COUNT]) {
+    uint8_t value[16] = {0};
+    size_t value_len = sizeof(value);
+
+    ESP_RETURN_ON_ERROR(send_command_wait_ack(cmd_word, NULL, 0, value, &value_len),
+                        TAG, "read sensitivity 0x%04X failed", cmd_word);
+    if (value_len < 2 + LD2412_GATE_COUNT) return ESP_ERR_INVALID_RESPONSE;
+    memcpy(per_gate, value + 2, LD2412_GATE_COUNT);
+    return ESP_OK;
+}
+
+esp_err_t ld2412_set_motion_sensitivity(const uint8_t per_gate[LD2412_GATE_COUNT]) {
+    if (per_gate == NULL) return ESP_ERR_INVALID_ARG;
+    return send_command_wait_ack(CMD_SET_MOTION_SENS, per_gate, LD2412_GATE_COUNT, NULL, NULL);
+}
+
+esp_err_t ld2412_get_motion_sensitivity(uint8_t per_gate[LD2412_GATE_COUNT]) {
+    if (per_gate == NULL) return ESP_ERR_INVALID_ARG;
+    return get_sensitivity(CMD_READ_MOTION_SENS, per_gate);
+}
+
+esp_err_t ld2412_set_static_sensitivity(const uint8_t per_gate[LD2412_GATE_COUNT]) {
+    if (per_gate == NULL) return ESP_ERR_INVALID_ARG;
+    return send_command_wait_ack(CMD_SET_STATIC_SENS, per_gate, LD2412_GATE_COUNT, NULL, NULL);
+}
+
+esp_err_t ld2412_get_static_sensitivity(uint8_t per_gate[LD2412_GATE_COUNT]) {
+    if (per_gate == NULL) return ESP_ERR_INVALID_ARG;
+    return get_sensitivity(CMD_READ_STATIC_SENS, per_gate);
 }
 
 const char *ld2412_state_str(ld2412_target_state_t state) {
