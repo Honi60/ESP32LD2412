@@ -265,6 +265,24 @@ void app_main(void) {
                          ld2412_state_str(data.state), data.moving_distance_cm,
                          data.moving_energy, data.static_distance_cm, data.static_energy);
                 if (data.engineering) log_gate_energies(&data);
+
+                /* One line per second in a parseable format, for capturing a
+                 * signature file per scenario: `idf.py monitor | grep RADAR_CSV`.
+                 * Fields: ms, state, mov cm/e, stat cm/e, 14 mov gates, 14 stat gates. */
+                char csv[2 + 160];
+                char *c = csv;
+                c += snprintf(c, sizeof(csv), "RADAR_CSV,%u,%u,%u,%u,%u,%u,",
+                              (unsigned)(now * portTICK_PERIOD_MS), data.state,
+                              data.moving_distance_cm, data.moving_energy,
+                              data.static_distance_cm, data.static_energy);
+                const uint8_t *mg = data.engineering ? data.moving_gate_energy : NULL;
+                const uint8_t *sg = data.engineering ? data.static_gate_energy : NULL;
+                for (int i = 0; i < LD2412_GATE_COUNT && c < csv + sizeof(csv) - 8; i++)
+                    c += snprintf(c, csv + sizeof(csv) - c, "%u,", mg ? mg[i] : 0);
+                for (int i = 0; i < LD2412_GATE_COUNT && c < csv + sizeof(csv) - 8; i++)
+                    c += snprintf(c, csv + sizeof(csv) - c, "%u%c",
+                                  sg ? sg[i] : 0, i == LD2412_GATE_COUNT - 1 ? ' ' : ',');
+                ESP_LOGI(TAG, "%s", csv);
             }
         }
 
